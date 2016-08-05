@@ -18,9 +18,32 @@ def stdget(out,err):
 	sys.stdout = out
 	sys.stderr = err
 
-def crawl(ob,parents=None,keys=None,capture=None,bubble=None,param=None):
+def crawl(ob,keys=None,parents=None,capture=None,bubble=None,param=None):
 	"""
-	Returns some kiiind of wonderful!
+	Returns what was passed in as param, after crawling through the target
+	object's nested structure and firing callbacks at every node in both capture
+	and bubble directions.
+	
+	Parameters:
+	ob
+		- target dict being crawled through
+	parents
+		- stack of parent objects to the current object under callback
+	keys
+		- stack of matching keys resulting in current object under callback in
+		  pairing with parents stack
+	capture
+		- callback function called at every dict moving in the capture direction
+		- capture(<dict>,<list>,<list>,<?>)
+			- <dict>, current dict
+			- <list>, keys stack at state in capture's calling
+			- <list>, parents stack at state in capture's calling
+			- <?>, optional parameter passed along from crawl(...)
+	bubble
+		- callback function called at every dict moving in the bubble direction
+		- functionally identical to capture, except during the bubble step
+	param
+		- optional argument passed in as param to capture and bubble callbacks
 	"""
 	parents = parents or []
 	keys = keys or []
@@ -28,7 +51,6 @@ def crawl(ob,parents=None,keys=None,capture=None,bubble=None,param=None):
 	if capture:
 		capture(ob,keys,parents,param=param)
 	for k,v in ob.iteritems():
-		#print 'k,v',k,v
 		if type(v) is dict:
 			parents.append(ob)
 			keys.append(k)
@@ -43,7 +65,8 @@ def __layercrawl_call(a,ob,i,param=None):
 	pass
 def __layercrawl_assign(p,a,ob,i,param=None):
 	p[a.name] = ob
-def layercrawl(items,parent=None,call=__layercrawl_call,assign=__layercrawl_assign,param=None):
+def layercrawl(items,parent=None,
+		call=__layercrawl_call,assign=__layercrawl_assign,param=None):
 	"""
 	Returns nested object matching layer structure, filled by call and assign
 	callback functions.
@@ -120,6 +143,8 @@ def clone_layer_tree(img,layer,prefix='copy_',root=None):
 		args.append((pdb.gimp_image_insert_layer,img,layer,
 			len(parents) and parents[-1]['newlayer'] or root,
 			ob['index']))
+	# Since the single layer was passed into layercrawl as a single-member list,
+	# the desired object is actually the first element of its return value.
 	crawl(bob[0],capture=clone)
 	
 	# This function will execute insertion behavior at a single later call.
