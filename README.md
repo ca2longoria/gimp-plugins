@@ -4,6 +4,7 @@ Plugins written for Gimp 2
 ### So far...
 - Pixel
   - Duplicate Grid
+  - Hue Shift
 
 ### Summate
 #### Duplicate Grid
