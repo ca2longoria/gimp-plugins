@@ -1,8 +1,16 @@
 
 import sys
+import copy
 import json
 import time
 from gimpfu import *
+
+def flatiter(*args):
+	for a in args:
+		if hasattr(a,'__iter__'):
+			yield flatiter(*a)
+		else:
+			yield a
 
 def stdput(path='./std'):
 	a = sys.stdout
@@ -45,18 +53,22 @@ def crawl(ob,keys=None,parents=None,capture=None,bubble=None,param=None):
 	param
 		- optional argument passed in as param to capture and bubble callbacks
 	"""
-	parents = parents or []
-	keys = keys or []
-	param = param or {}
+	parents = parents if not parents is None else []
+	keys    = keys    if not keys    is None else []
+	param   = param   if not param   is None else {}
+	persist = True
 	if capture:
-		capture(ob,keys,parents,param=param)
-	for k,v in ob.iteritems():
-		if type(v) is dict:
-			parents.append(ob)
-			keys.append(k)
-			crawl(v,keys=keys,parents=parents,capture=capture,bubble=bubble,param=param)
-			keys.pop()
-			parents.pop()
+		persist = capture(ob,keys,parents,param=param)
+		persist = persist or persist is None
+	if persist and hasattr(ob,'__iter__'):
+		iter = type(ob) is dict and ob.iteritems() or zip(range(len(ob)),ob)
+		for k,v in iter:
+			if hasattr(v,'__getitem__'):
+				parents.append(ob)
+				keys.append(k)
+				crawl(v,keys=keys,parents=parents,capture=capture,bubble=bubble,param=param)
+				keys.pop()
+				parents.pop()
 	if bubble:
 		bubble(ob,keys,parents,param=param)
 	return param
@@ -65,8 +77,7 @@ def __layercrawl_call(a,ob,i,param=None):
 	pass
 def __layercrawl_assign(p,a,ob,i,param=None):
 	p[a.name] = ob
-def layercrawl(items,parent=None,
-		call=__layercrawl_call,assign=__layercrawl_assign,param=None):
+def layercrawl(items,parent=None,call=__layercrawl_call,assign=__layercrawl_assign,param=None):
 	"""
 	Returns nested object matching layer structure, filled by call and assign
 	callback functions.
@@ -99,7 +110,7 @@ def layercrawl(items,parent=None,
 	Note: gimp.Layer may also be gimp.GroupLayer.
 	"""
 	index = 0
-	parent = parent or {}
+	parent = parent if not (parent is None) else {}
 	for a in items:
 		ob = {}
 		call(a,ob,index,param=param)
@@ -140,6 +151,8 @@ def clone_layer_tree(img,layer,prefix='copy_',root=None):
 			layer = pdb.gimp_layer_new_from_drawable(layer,img)
 		layer.name = prefix+ob['layer'].name
 		ob['newlayer'] = layer
+		# These can be executed later in succession on calling the returned
+		# insert_layers function.
 		args.append((pdb.gimp_image_insert_layer,img,layer,
 			len(parents) and parents[-1]['newlayer'] or root,
 			ob['index']))
@@ -153,3 +166,69 @@ def clone_layer_tree(img,layer,prefix='copy_',root=None):
 			a[0](*a[1:])
 	
 	return bob[0],args,insert_layers
+
+
+import gtk
+import threading
+
+class PyWindow(gtk.Window):
+	def __init__(self,contents=None,title='entitling titlage',size=None,resizable=None,**args):
+		"""
+		Sanctifies the keyword '_widget' under contents to represent a widget
+		with children.
+		
+		
+		"""
+		contents = contents or {}
+		gtk.Window.__init__(self,**args)
+		self.connect('delete-event',gtk.main_quit)
+		self.set_title(title)
+		if not size is None:
+			self.set_geometry_hints(min_width=size[0],min_height=size[1])
+		if size and resizable == False:
+			self.set_resizable(False)
+		
+		widgets = {}
+		packing = {}
+		def capture(ob,keys,parents,param):
+			#print 'capture:',ob,keys,len(parents),len(param)
+			if len(keys) == 0:
+				return
+			if keys[-1] == '_widget':
+				return False
+			if keys[-1][0] == '_':
+				packing[keys[-1][1:]] = copy.deepcopy(ob)
+				return False
+			r = ob
+			if type(r) is dict and r.has_key('_widget'):
+				r = r['_widget']
+			if type(r) in (list,tuple):
+				args = len(r) > 1 and (type(r[1]) in (list,tuple)) and tuple(r[1]) or []
+				keywords = len(r) > 1 and type(r[-1]) is dict and r[-1] or {}
+				widget = r[0](*args,**keywords)
+				pkey = len(keys) > 1 and keys[-2] or None
+				param[keys[-1]] = (widget,pkey and param[pkey][0] or self)
+				# If ob isn't a dict, this is a leaf node, and capture recursion
+				# should cease.
+				if not type(ob) is dict:
+					return False
+		
+		crawl(contents,capture=capture,param=widgets)
+		self.widgets = widgets
+		self.packing = packing
+		
+		print 'packing',self.packing
+		
+		self.__init_children()
+	
+	def __init_children(self):
+		for k,v in self.widgets.items():
+			# p should be self in appropriate cases.
+			w,p = v
+			print 'k,w,p',k,w,p
+			if self.packing.has_key(k):
+				pack,keywords = self.packing[k]
+				getattr(p,pack)(w,**keywords)
+			else:
+				p.add(w)
+

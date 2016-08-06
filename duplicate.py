@@ -5,8 +5,9 @@ from gimpfu import *
 from pyfu import *
 
 debug_path = 'd:\\tmp\\pyfu'
+O,E = stdput(debug_path)
 
-def dupright(img,draw,countx=1,county=1,new_image=False,row_groups=False,major_group=False):
+def dupgrid(img,draw,countx=1,county=1,new_image=False,row_groups=False,major_group=False):
 	stdout,stderr = stdput(debug_path)
 	
 	# Resize image.
@@ -20,6 +21,9 @@ def dupright(img,draw,countx=1,county=1,new_image=False,row_groups=False,major_g
 		pdb.gimp_display_new(img2)
 	else:
 		img2 = img
+	
+	pdb.gimp_undo_push_group_start(img2)
+	
 	img2.resize(img.width*countx,img.height*county,0,0)
 	
 	# Per tile, create new layer.
@@ -52,10 +56,57 @@ def dupright(img,draw,countx=1,county=1,new_image=False,row_groups=False,major_g
 			# Update progress bar.
 			gimp.progress_update(float(countx*i+j+1)/(countx*county))
 	
+	pdb.gimp_undo_push_group_end(img2)
+	
+	stdget(stdout,stderr)
+
+def hueshift(img,draw):
+	stdout,stderr = stdput(debug_path)
+	
+	class Win(PyWindow):
+		def __init__(self,img,*args,**keys):
+			ob = {
+				'box': { '_widget':(gtk.VBox,),
+					
+					'texty':(gtk.TextView,),
+					'_texty':('pack_start',{'expand':False,'fill':False}),
+					
+					'butt':(gtk.Button,{'label':'McGoog'}),
+					'_butt':('pack_end',{'expand':False,'fill':False})
+				}
+			}
+			PyWindow.__init__(self,contents=ob,*args,**keys)
+			t = self.widgets
+			t['texty'][0].set_size_request(-1,24)
+			
+			names = []
+			def call(layer,ob,i,param):
+				'bah, you!',layer,ob,i,param
+				param.append(layer.name)
+			layercrawl(img.layers,call=call,param=names)
+			self.layers = names
+			print 'self.layers', self.layers
+			
+			b = t['texty'][0].get_buffer()
+			b.insert(b.get_start_iter(),','.join(self.layers))
+	
+	print 'some thang'
+	
+	w = Win(
+		img,
+		title='Hue Shift',
+		size=[200,400],
+		resizable=False)
+	
+	print 'somer thangs'
+	w.show_all()
+	gtk.main()
+	
+	print 'somest thang'
 	stdget(stdout,stderr)
 
 register(
-	"dupright",
+	"dupgrid",
 	"Duplicate to Grid",
 	"Duplicate the current image into a grid.",
 	"Cesar Longoria",
@@ -64,18 +115,38 @@ register(
 	"<Image>/_Pixel/_Duplicate to Grid",
 	"RGB*",
 	[
-		(PF_INT,'countx','Grid width',1),
-		(PF_INT,'county','Grid height',1),
+		(PF_INT,'countx','Columns',1),
+		(PF_INT,'county','Rows',1),
 		(PF_TOGGLE,'new_image','Render to new image',False),
 		(PF_TOGGLE,'row_groups','Insert groups into row groups',False),
 		(PF_TOGGLE,'major_group','Insert all groups into major group',False)
 	],
 	[],
-	dupright,
+	dupgrid,
 	menu=None,
 	domain=None,
 	on_query=None,
 	on_run=None
 )
+
+register(
+	"hueshift",
+	"Shift hues of matched groups.",
+	"Provide a ring of hues and offsets applicable to each of several stated group name matches.",
+	"Cesar Longoria",
+	"Cesar Longoria",
+	"2016-2017",
+	"<Image>/_Pixel/_Hue Shift",
+	"RGB*",
+	[],
+	[],
+	hueshift,
+	menu=None,
+	domain=None,
+	on_query=None,
+	on_run=None
+)
+
+stdget(O,E)
 
 main()
