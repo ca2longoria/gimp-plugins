@@ -1,6 +1,5 @@
 
 import sys
-import copy
 import json
 import time
 from gimpfu import *
@@ -166,69 +165,3 @@ def clone_layer_tree(img,layer,prefix='copy_',root=None):
 			a[0](*a[1:])
 	
 	return bob[0],args,insert_layers
-
-
-import gtk
-import threading
-
-class PyWindow(gtk.Window):
-	def __init__(self,contents=None,title='entitling titlage',size=None,resizable=None,**args):
-		"""
-		Sanctifies the keyword '_widget' under contents to represent a widget
-		with children.
-		
-		
-		"""
-		contents = contents or {}
-		gtk.Window.__init__(self,**args)
-		self.connect('delete-event',gtk.main_quit)
-		self.set_title(title)
-		if not size is None:
-			self.set_geometry_hints(min_width=size[0],min_height=size[1])
-		if size and resizable == False:
-			self.set_resizable(False)
-		
-		widgets = {}
-		packing = {}
-		def capture(ob,keys,parents,param):
-			#print 'capture:',ob,keys,len(parents),len(param)
-			if len(keys) == 0:
-				return
-			if keys[-1] == '_widget':
-				return False
-			if keys[-1][0] == '_':
-				packing[keys[-1][1:]] = copy.deepcopy(ob)
-				return False
-			r = ob
-			if type(r) is dict and r.has_key('_widget'):
-				r = r['_widget']
-			if type(r) in (list,tuple):
-				args = len(r) > 1 and (type(r[1]) in (list,tuple)) and tuple(r[1]) or []
-				keywords = len(r) > 1 and type(r[-1]) is dict and r[-1] or {}
-				widget = r[0](*args,**keywords)
-				pkey = len(keys) > 1 and keys[-2] or None
-				param[keys[-1]] = (widget,pkey and param[pkey][0] or self)
-				# If ob isn't a dict, this is a leaf node, and capture recursion
-				# should cease.
-				if not type(ob) is dict:
-					return False
-		
-		crawl(contents,capture=capture,param=widgets)
-		self.widgets = widgets
-		self.packing = packing
-		
-		print 'packing',self.packing
-		
-		self.__init_children()
-	
-	def __init_children(self):
-		for k,v in self.widgets.items():
-			# p should be self in appropriate cases.
-			w,p = v
-			print 'k,w,p',k,w,p
-			if self.packing.has_key(k):
-				pack,keywords = self.packing[k]
-				getattr(p,pack)(w,**keywords)
-			else:
-				p.add(w)
-

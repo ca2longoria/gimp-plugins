@@ -1,8 +1,9 @@
 
 import sys
 import json
-from gimpfu import *
 from pyfu import *
+from pygui import *
+from gimpfu import *
 
 debug_path = 'd:\\tmp\\pyfu'
 O,E = stdput(debug_path)
@@ -68,10 +69,13 @@ def hueshift(img,draw):
 			ob = {
 				'box': { '_widget':(gtk.VBox,),
 					
-					'texty':(gtk.TextView,),
+					'texty':(0,gtk.TextView,),
 					'_texty':('pack_start',{'expand':False,'fill':False}),
 					
-					'butt':(gtk.Button,{'label':'McGoog'}),
+					'text2':(11,gtk.TextView,),
+					'_text2':('pack_end',{'expand':False,'fill':False,'_get':lambda w:'Noodles'}),
+					
+					'butt':(10,gtk.Button,{'label':'McGoog'}),
 					'_butt':('pack_end',{'expand':False,'fill':False})
 				}
 			}
@@ -87,8 +91,11 @@ def hueshift(img,draw):
 			self.layers = names
 			print 'self.layers', self.layers
 			
-			b = t['texty'][0].get_buffer()
-			b.insert(b.get_start_iter(),','.join(self.layers))
+			print 'value mapping'
+			print 'texty:',self.value['texty']
+			self.value['texty'] = 'Saussagge'
+			print 'texty now:',self.value['texty']
+			print 'text2:',self.value['text2']
 	
 	print 'some thang'
 	
