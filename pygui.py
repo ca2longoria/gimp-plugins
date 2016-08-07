@@ -5,6 +5,59 @@ import copy
 from pyfu import *
 from gimpfu import *
 
+def __widgetcrawl_call(a,ob,i,param=None):
+	pass
+def __widgetcrawl_assign(p,a,ob,i,param=None):
+	p[i] = ob
+def widgetcrawl(items,parent=None,call=__widgetcrawl_call,assign=__widgetcrawl_assign,param=None):
+	"""
+	Returns nested object matching widget structure, filled by call and assign
+	callback functions.
+	
+	Parameters:
+	items
+		- list of widgets
+	parent
+		- parent widget (default = None)
+	call
+		- callback function for assigning key/value pairs between widget and
+		  matching dict, takes place during capture stage
+		- call(<gtk.Widget>,<dict>,<int>,<?>)
+			- gtk.Widget, current widget
+			- dict, current dict matching widget in the nested structure
+			- int, current index amongst sibling widgets
+			- ?, optional parameter passed along from widgetcrawl(...)
+	assign
+		- callback function for assigning child dict to parent dict, takes place
+		  during bubble stage
+		- assign(<dict>,<gtk.widget>,<dict>,<int>,<?>)
+			- dict, parent dict
+			- gtk.widget, current widget
+			- dict, current dict matching widget in the nested structure
+			- int, current index amongst sibling widgets
+			- ?, optional parameter passed along from widgetcrawl(...)
+	param
+		- optional argument passed in as param to call and assign callbacks
+	"""
+	index = 0
+	parent = parent if not (parent is None) else {}
+	for a in items:
+		ob = {}
+		call(a,ob,index,param=param)
+		if hasattr(a,'get_children'):
+			widgetcrawl(a.get_children(),parent=ob,call=call,assign=assign,param=param)
+		assign(parent,a,ob,index,param=param)
+		index += 1
+	return parent
+
+def widgetquery(widget,query):
+	widgets = hasattr(widget,'__iter__') and widget or [widget]
+	matches = []
+	def call(a,ob,i,param):
+		if query(a):
+			param.append(a)
+	widgetcrawl(widgets,call=call,param=matches)
+	return matches
 
 class PyWindow(gtk.Window):
 	"""
@@ -21,6 +74,8 @@ class PyWindow(gtk.Window):
 			return set(w,value)
 		def __determine(self,w):
 			print '__determine',self,w
+			if hasattr(w,'get_text') and hasattr(w,'set_text'):
+				return lambda w:w.get_text(), lambda w,v:w.set_text(v)
 			if hasattr(w,'get_buffer'):
 				b = w.get_buffer()
 				if type(b) == gtk.TextBuffer:

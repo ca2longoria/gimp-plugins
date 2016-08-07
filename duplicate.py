@@ -66,56 +66,177 @@ def hueshift(img,draw):
 	
 	class Win(PyWindow):
 		def __init__(self,img,*args,**keys):
+			
+			class LowerWin(gtk.ScrolledWindow):
+				def __init__(self,src,*args,**keys):
+					if not hasattr(src,'layer_names'):
+						raise 'ERROR: LowerWin src parameter must contain "layer_names" attribute'
+					self.source = src
+					
+					gtk.ScrolledWindow.__init__(self,*args,**keys)
+					self.set_policy(gtk.POLICY_AUTOMATIC,gtk.POLICY_ALWAYS)
+					
+					self.view = gtk.Viewport()
+					self.vbox = gtk.VBox()
+					
+					self.view.add(self.vbox)
+					self.add(self.view)
+				
+				def refresh(self):
+					names = list(self.source.layer_names)
+					for c in self.vbox.get_children():
+						c.destroy()
+					for n in self.source.layer_names:
+						self.vbox.pack_start(self.init_row(n),expand=False)
+				
+				def init_row(self,name):
+					frame = gtk.Frame()
+					hb1 = gtk.HBox()
+					hb1.set_property('height-request',36)
+					
+					label = gtk.Label(name)
+					
+					vb1  = gtk.VBox()
+					up   = gtk.Button(label='^')
+					up.set_size_request(24,18)
+					down = gtk.Button(label='v')
+					down.set_size_request(24,18)
+					
+					vb1.pack_start(up,expand=True,fill=True)
+					vb1.pack_end(down,expand=True,fill=True)
+					
+					hb1.pack_start(label,expand=False)
+					hb1.pack_end(vb1,expand=False,fill=False)
+					frame.add(hb1)
+					frame.show_all()
+					
+					return frame
+					
+			
+			def def_layer_results():
+				names = [[]]
+				def get(w):
+					return list(names[0])
+				def set(w,v):
+					w = widgetquery(w,lambda w:type(w) is gtk.VBox)[0]
+					print 'set_layer_results',w,v
+					names[0] = []
+					for c in w.get_children():
+						c.destroy()
+					for a in v:
+						print 'at ',a
+						names[0].append(a.name)
+						t = gtk.Label(a.name)
+						t.set_justify(gtk.JUSTIFY_LEFT)
+						t.set_size_request(100,13)
+						# For some reason, this t.show() is necessary.
+						t.show()
+						w.pack_start(t,expand=False,fill=True)
+					print 'w.children',w.get_children()
+					sys.stdout.flush()
+				return get,set			
+			get_layer_results,set_layer_results = def_layer_results()
+			
 			ob = {
 				'box': { '_widget':(gtk.VBox,),
 					
-					'texty':(0,gtk.TextView,),
-					'_texty':('pack_start',{'expand':False,'fill':False}),
+					'layer_select': { '_widget':(-1,gtk.VBox,),
+						'hbox1': { '_widget':(0,gtk.HBox,),
+							'regex_label':(gtk.Label,['Regex']),
+							'_regex_label':('pack_start',{'expand':False,'fill':False}),
+							'regex':(gtk.Entry,),
+							'_regex':('pack_end',{'expand':True,'fill':True})
+						},
+						'layer_results': { '_widget':(1,gtk.ScrolledWindow,),
+							'viewport1': { '_widget':(gtk.Viewport,),
+								'layer_results_box':(gtk.VBox,),
+								'_layer_results_box':(None,{})
+							}
+						},
+						'_layer_results':(None,{
+							'_get':get_layer_results,
+							'_set':set_layer_results}),
+						'hbox2': { '_widget':(2,gtk.HBox,),
+							'minus':(0,gtk.Button,{'label':'-'}),
+							'_minus':('pack_start',{'expand':False}),
+							'plus':(1,gtk.Button,{'label':'+'}),
+							'_plus':('pack_start',{'expand':True,'fill':True})
+						}
+					},
+					'_layer_select':('pack_start',{'expand':False,'fill':False}),
 					
-					'colory':(1,gtk.ColorButton,),
-					'_colory':('pack_start',{'expand':False,'fill':False,
-						'_get':lambda w:w.get_color()}),
-					
-					'text2':(11,gtk.TextView,),
-					# TODO: Let '_*' companion keys carry multiple lists of
-					#   additional commands.
-					'_text2':('pack_end',{'expand':False,'fill':False,
-						'_get':lambda w:'Noodles'}),
+					'layer_edit':(11,LowerWin,[self]),
+					'_layer_edit':('pack_end',{'expand':True,'fill':True}),
 					
 					'butt':(10,gtk.Button,{'label':'McGoog'}),
 					'_butt':('pack_end',{'expand':False,'fill':False})
 				}
 			}
-			def do_thing(w):
-				print 'thing be do!',self.value['colory']
-				sys.stdout.flush()
 			
+			self.image = img
+			self.layer_names = []
 			PyWindow.__init__(self,contents=ob,*args,**keys)
+			
 			t = self.widgets
-			t['texty'].set_size_request(-1,24)
-			t['butt'].connect('clicked',do_thing)
+			t['regex_label'].set_property('width-request',40)
+			t['viewport1'].modify_bg(gtk.STATE_NORMAL,gtk.gdk.color_parse('white'))
+			t['layer_results'].set_property('height-request',140)
+			t['layer_results'].set_policy(gtk.POLICY_AUTOMATIC,gtk.POLICY_ALWAYS)
+			t['minus'].set_property('width-request',40)
 			
-			# Get img layers, storing as self.layers.
-			names = []
-			def call(layer,ob,i,param):
-				param.append(layer.name)
-			layercrawl(img.layers,call=call,param=names)
-			self.layers = names
-			print 'self.layers', self.layers
+			def meh(w):
+				layers = self.__layer_filter()
+				self.value['layer_results'] = layers
+				sys.stdout.flush()
+			t['regex'].connect('changed',meh)
+			t['regex'].connect('activate',meh)
 			
-			# Looks like this works well.
-			self.value['texty'] = 'Saussagge'
+			layer_table = {}
+			def get_t():
+				t = {}
+				all = layerquery(img.layers,lambda a:True)
+				for a,i in zip(all,range(len(all))):
+					t[a.name] = i
+				return t
+			def add_these(w):
+				t = get_t()
+				r = [(t[n],n) for n in list(set(self.layer_names + self.value['layer_results']))]
+				r.sort()
+				self.layer_names = [a[1] for a in r]
+				print 'added, now:',self.layer_names
+				self.widgets['layer_edit'].refresh()
+				sys.stdout.flush()
+			def remove_these(w):
+				t = get_t()
+				r = [(t[n],n) for n in list(set(self.layer_names) - set(self.value['layer_results']))]
+				r.sort()
+				self.layer_names = [a[1] for a in r]
+				print 'removed, now:',self.layer_names
+				self.widgets['layer_edit'].refresh()
+				sys.stdout.flush()
+			t['plus'].connect('clicked',add_these)
+			t['minus'].connect('clicked',remove_these)
 			
-			print 'color value:', self.value['colory']
+			# Eh... minor first-time initializations?
+			meh(None)
+			self.widgets['layer_edit'].refresh()
 			
 			sys.stdout.flush()
+		
+		def __layer_filter(self):
+			x = re.compile(self.value['regex'],re.IGNORECASE)
+			layers = []
+			def call(a,ob,i,param):
+				param.append(a)
+			layercrawl(self.image.layers,call=call,param=layers)
+			return [a for a in layers if x.search(a.name)]
 	
 	print 'some thang'
 	
 	w = Win(
 		img,
-		title='Hue Shift',
-		size=[200,400],
+		title='Hue Shift - '+img.name,
+		size=[240,600],
 		resizable=False)
 	
 	print 'somer thangs'

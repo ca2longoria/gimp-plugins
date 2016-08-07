@@ -1,4 +1,5 @@
 
+import re
 import sys
 import json
 import time
@@ -10,6 +11,9 @@ def flatiter(*args):
 			yield flatiter(*a)
 		else:
 			yield a
+
+def re_list(x,r):
+	return [a for a in r if re.search(x,a)]
 
 def stdput(path='./std'):
 	a = sys.stdout
@@ -119,6 +123,15 @@ def layercrawl(items,parent=None,call=__layercrawl_call,assign=__layercrawl_assi
 		index += 1
 	return parent
 
+def layerquery(layer,query):
+	layers = hasattr(layer,'__iter__') and layer or [layer]
+	matches = []
+	def call(a,ob,i,param):
+		if query(a):
+			param.append(a)
+	layercrawl(layers,call=call,param=matches)
+	return matches
+	
 
 def clone_layer_tree(img,layer,prefix='copy_',root=None):
 	
