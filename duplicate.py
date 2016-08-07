@@ -72,30 +72,43 @@ def hueshift(img,draw):
 					'texty':(0,gtk.TextView,),
 					'_texty':('pack_start',{'expand':False,'fill':False}),
 					
+					'colory':(1,gtk.ColorButton,),
+					'_colory':('pack_start',{'expand':False,'fill':False,
+						'_get':lambda w:w.get_color()}),
+					
 					'text2':(11,gtk.TextView,),
-					'_text2':('pack_end',{'expand':False,'fill':False,'_get':lambda w:'Noodles'}),
+					# TODO: Let '_*' companion keys carry multiple lists of
+					#   additional commands.
+					'_text2':('pack_end',{'expand':False,'fill':False,
+						'_get':lambda w:'Noodles'}),
 					
 					'butt':(10,gtk.Button,{'label':'McGoog'}),
 					'_butt':('pack_end',{'expand':False,'fill':False})
 				}
 			}
+			def do_thing(w):
+				print 'thing be do!',self.value['colory']
+				sys.stdout.flush()
+			
 			PyWindow.__init__(self,contents=ob,*args,**keys)
 			t = self.widgets
-			t['texty'][0].set_size_request(-1,24)
+			t['texty'].set_size_request(-1,24)
+			t['butt'].connect('clicked',do_thing)
 			
+			# Get img layers, storing as self.layers.
 			names = []
 			def call(layer,ob,i,param):
-				'bah, you!',layer,ob,i,param
 				param.append(layer.name)
 			layercrawl(img.layers,call=call,param=names)
 			self.layers = names
 			print 'self.layers', self.layers
 			
-			print 'value mapping'
-			print 'texty:',self.value['texty']
+			# Looks like this works well.
 			self.value['texty'] = 'Saussagge'
-			print 'texty now:',self.value['texty']
-			print 'text2:',self.value['text2']
+			
+			print 'color value:', self.value['colory']
+			
+			sys.stdout.flush()
 	
 	print 'some thang'
 	

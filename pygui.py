@@ -32,7 +32,6 @@ class PyWindow(gtk.Window):
 						b.set_text(v)
 					return get,set
 			return (lambda w:None,lambda w:None)
-			
 		def put(self,key,ob,get=None,set=None):
 			if (not get) or (not set):
 				g,s = self.__determine(ob)
@@ -102,7 +101,7 @@ class PyWindow(gtk.Window):
 				[<init-keywords-dict>]
 			)
 			- Only the widget class is absolutely necessary.  The rest provide
-			  either <widget-class>.__init__(...) arguments or the ordering
+			  either <widget-class>.__init__(self,...) arguments or the ordering
 			  index.
 		"""
 		contents = contents or {}
@@ -153,23 +152,24 @@ class PyWindow(gtk.Window):
 					return False
 		crawl(contents,capture=capture,param=widgets)
 		self.widgets = widgets
-		self.packing = packing
-		self.ordering = ordering
-		
-		print 'packing',self.packing
 		
 		self.value = PyWindow.value_map()
-		self.__init_children()
+		self.__init_children(widgets,packing,ordering)
+		
+		# Assign only widget to self.widgets' values, since packing into parents
+		# has already occurred.
+		for k,a in self.widgets.items():
+			self.widgets[k] = a[0]
 	
-	def __init_children(self):
-		for k,v in sorted(self.widgets.items(),key=lambda a:self.ordering[a[0]]):
+	def __init_children(self,widgets,packing,ordering):
+		for k,v in sorted(widgets.items(),key=lambda a:ordering[a[0]]):
 			# p should be self in appropriate cases.
 			w,p = v
 			get,set = (None,None)
-			print 'k,w,p',k,w,p
-			if self.packing.has_key(k):
+			#print 'k,w,p',k,w,p
+			if packing.has_key(k):
 				special = ('_get','_set')
-				pack,keywords = self.packing[k]
+				pack,keywords = packing[k]
 				if keywords.has_key('_get'):
 					get = keywords['_get']
 				if keywords.has_key('_set'):
