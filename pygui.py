@@ -59,6 +59,15 @@ def widgetquery(widget,query):
 	widgetcrawl(widgets,call=call,param=matches)
 	return matches
 
+def widgetupquery(widget,query):
+	w = widget
+	matches = []
+	while w:
+		if query(w):
+			matches.append(w)
+		w = w.get_parent()
+	return matches
+
 class PyWindow(gtk.Window):
 	"""
 	Holy Justice Wiggin, small alien creature!  What is going on here!?
@@ -180,7 +189,10 @@ class PyWindow(gtk.Window):
 			if keys[-1] == '_widget':
 				return False
 			if keys[-1][0] == '_':
-				packing[keys[-1][1:]] = copy.deepcopy(ob)
+				# NOTE: Uncertain whether there is an advantage of deepcopy in
+				#   an object structure meant to be static.
+				#packing[keys[-1][1:]] = copy.deepcopy(ob)
+				packing[keys[-1][1:]] = copy.copy(ob)
 				return False
 			r = ob
 			if type(r) is dict and r.has_key('_widget'):
@@ -224,7 +236,13 @@ class PyWindow(gtk.Window):
 			#print 'k,w,p',k,w,p
 			if packing.has_key(k):
 				special = ('_get','_set')
-				pack,keywords = packing[k]
+				#pack,keywords = packing[k]
+				r = packing[k]
+				pack = r[0]
+				# These two lines are copied from up above; perhaps a unique
+				# function is in order.
+				args = len(r) > 1 and (type(r[1]) in (list,tuple)) and tuple(r[1]) or []
+				keywords = len(r) > 1 and type(r[-1]) is dict and r[-1] or {}
 				if keywords.has_key('_get'):
 					get = keywords['_get']
 				if keywords.has_key('_set'):
@@ -233,7 +251,7 @@ class PyWindow(gtk.Window):
 					if keywords.has_key(s):
 						del keywords[s]
 				pack = pack or 'add'
-				getattr(p,pack)(w,**keywords)
+				getattr(p,pack)(w,*args,**keywords)
 			else:
 				p.add(w)
 			# Add to the value mapping.

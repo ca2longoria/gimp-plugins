@@ -131,6 +131,13 @@ def layerquery(layer,query):
 			param.append(a)
 	layercrawl(layers,call=call,param=matches)
 	return matches
+
+def layersmash(layers):
+	r = []
+	def call(a,ob,i,param):
+		r.append(a)
+	layercrawl(layers,call=call)
+	return r
 	
 
 def clone_layer_tree(img,layer,prefix='copy_',root=None):

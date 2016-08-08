@@ -50,7 +50,7 @@ def dupgrid(img,draw,countx=1,county=1,new_image=False,row_groups=False,major_gr
 			#   once, so we can side-step this weird necessary reversal.
 			for insert in reversed(inserts):
 				insert()
-				
+			
 			# Set offset of current layer group.
 			g.set_offsets(img_width*j,img_height*i)
 			
@@ -91,27 +91,80 @@ def hueshift(img,draw):
 				
 				def init_row(self,name):
 					frame = gtk.Frame()
+					row_root = frame
+					
 					hb1 = gtk.HBox()
 					hb1.set_property('height-request',36)
 					
+					vb2 = gtk.VBox()
+					vb2.set_property('width-request',20)
+					xbutt = gtk.Button(label='x')
+					xbutt.set_size_request(20,20)
+					def remove_entry(w):
+						self.source.layer_names.remove(name)
+						self.refresh()
+					xbutt.connect('clicked',remove_entry)
+					
+					aln = gtk.Alignment(yalign=.5)
+					aln.set_padding(0,0, 4,0)
 					label = gtk.Label(name)
 					
+					cbutt = gtk.ColorButton()
+					cbutt.set_size_request(40,30)
+					aln2 = gtk.Alignment(yalign=.5)
+					aln2.set_padding(0,0, 0,16)
+					
+					def def_switch_entries(index=1):
+						def switch_entries(w):
+							r = self.source.layer_names
+							i = r.index(name)
+							x = i + index
+							x = 0 if x < 0 else x
+							x = len(r)-1 if x >= len(r) else x
+							# Reorder source-side.
+							del r[i]
+							r.insert(x,name)
+							# Reorder sibling-widget-side.
+							row_root.get_parent().reorder_child(row_root,x)
+							# Switch their set colors... or I guess just
+							# recompute?
+							
+							
+						return switch_entries
 					vb1  = gtk.VBox()
 					up   = gtk.Button(label='^')
 					up.set_size_request(24,18)
+					up.connect('clicked',def_switch_entries(-1))
 					down = gtk.Button(label='v')
 					down.set_size_request(24,18)
+					down.connect('clicked',def_switch_entries(1))
 					
 					vb1.pack_start(up,expand=True,fill=True)
 					vb1.pack_end(down,expand=True,fill=True)
 					
-					hb1.pack_start(label,expand=False)
+					vb2.pack_start(xbutt,expand=True,fill=False)
+					aln.add(label)
+					aln2.add(cbutt)
+					
+					hb1.pack_start(vb2,expand=False,fill=False)
+					hb1.pack_start(aln,expand=False)
 					hb1.pack_end(vb1,expand=False,fill=False)
+					hb1.pack_end(aln2,expand=False,fill=False)
+					
 					frame.add(hb1)
 					frame.show_all()
-					
 					return frame
-					
+				
+				def render_colors(self,operation):
+					print 'them colors: so render'
+					r = self.source.layer_names
+					bs = widgetquery(self,lambda w:type(w) is gtk.ColorButton)
+					if len(r) != len(bs):
+						raise 'ERROR: color buttons must mirror layer_names'
+					for i in range(len(r)):
+						bs[i].set_color(operation(i))
+					sys.stdout.flush()
+			
 			
 			def def_layer_results():
 				names = [[]]
@@ -140,50 +193,77 @@ def hueshift(img,draw):
 			ob = {
 				'box': { '_widget':(gtk.VBox,),
 					
-					'layer_select': { '_widget':(-1,gtk.VBox,),
-						'hbox1': { '_widget':(0,gtk.HBox,),
-							'regex_label':(gtk.Label,['Regex']),
-							'_regex_label':('pack_start',{'expand':False,'fill':False}),
-							'regex':(gtk.Entry,),
-							'_regex':('pack_end',{'expand':True,'fill':True})
-						},
-						'layer_results': { '_widget':(1,gtk.ScrolledWindow,),
-							'viewport1': { '_widget':(gtk.Viewport,),
-								'layer_results_box':(gtk.VBox,),
-								'_layer_results_box':(None,{})
+					'tabs': { '_widget':(-1,gtk.Notebook,),
+						'layer_select': { '_widget':(0,gtk.VBox,),
+							'hbox1': { '_widget':(0,gtk.HBox,),
+								#'regex_label':(gtk.Label,['Regex']),
+								#'_regex_label':('pack_start',{'expand':False,'fill':False}),
+								'regex':(gtk.Entry,),
+								'_regex':('pack_end',{'expand':True,'fill':True})
+							},
+							'layer_results': { '_widget':(1,gtk.ScrolledWindow,),
+								'viewport1': { '_widget':(gtk.Viewport,),
+									'layer_results_box':(gtk.VBox,),
+									'_layer_results_box':(None,{})
+								}
+							},
+							'_layer_results':(None,{
+								'_get':get_layer_results,
+								'_set':set_layer_results}),
+							'hbox2': { '_widget':(2,gtk.HBox,),
+								'minus':(0,gtk.Button,{'label':'-'}),
+								'_minus':('pack_start',{'expand':False}),
+								'plus':(1,gtk.Button,{'label':'+'}),
+								'_plus':('pack_start',{'expand':True,'fill':True})
 							}
 						},
-						'_layer_results':(None,{
-							'_get':get_layer_results,
-							'_set':set_layer_results}),
-						'hbox2': { '_widget':(2,gtk.HBox,),
-							'minus':(0,gtk.Button,{'label':'-'}),
-							'_minus':('pack_start',{'expand':False}),
-							'plus':(1,gtk.Button,{'label':'+'}),
-							'_plus':('pack_start',{'expand':True,'fill':True})
-						}
+						'_layer_select':('append_page',[gtk.Label('Regex')]),
+						
+						'hue_select': { '_widget':(1,gtk.VBox,),
+							'hbox3': { '_widget':(0,gtk.HBox,),
+								'color_offset_label':(0,gtk.Label,['Color Offset']),
+								'color_offset':(1,gtk.ColorButton,)
+							},
+							'_hbox3':('pack_start',{'expand':False}),
+							
+							'hue_button':(gtk.Button,{'label':'Apply Hues'}),
+							'_hue_button':('pack_end',{'expand':False})
+						},
+						'_hue_select':('append_page',[gtk.Label('Hue')])
 					},
-					'_layer_select':('pack_start',{'expand':False,'fill':False}),
+					'_tabs':('pack_start',{'expand':False,'fill':False}),
 					
 					'layer_edit':(11,LowerWin,[self]),
-					'_layer_edit':('pack_end',{'expand':True,'fill':True}),
+					'_layer_edit':('pack_end',{'expand':True,'fill':True,
+						'_set':LowerWin.render_colors}),
 					
-					'butt':(10,gtk.Button,{'label':'McGoog'}),
+					'butt':(10,gtk.Button,{'label':'Render Hue Filters'}),
 					'_butt':('pack_end',{'expand':False,'fill':False})
 				}
 			}
 			
 			self.image = img
+			# A number of different Widgets depend on this attribute.
 			self.layer_names = []
 			PyWindow.__init__(self,contents=ob,*args,**keys)
 			
 			t = self.widgets
-			t['regex_label'].set_property('width-request',40)
+			t['tabs'].set_tab_pos(gtk.POS_LEFT)
+			#t['regex_label'].set_property('width-request',40)
 			t['viewport1'].modify_bg(gtk.STATE_NORMAL,gtk.gdk.color_parse('white'))
 			t['layer_results'].set_property('height-request',140)
 			t['layer_results'].set_policy(gtk.POLICY_AUTOMATIC,gtk.POLICY_ALWAYS)
 			t['minus'].set_property('width-request',40)
-			
+			def apply_hues(w):
+				def wack(i):
+					c = t['color_offset'].get_color()
+					h = c.hue
+					interval = 1./len(self.layer_names)
+					c = gtk.gdk.color_from_hsv(h+(interval*i),c.saturation,c.value)
+					print 'all wack',i,c
+					return c
+				self.value['layer_edit'] = wack
+			t['hue_button'].connect('clicked',apply_hues)
 			def meh(w):
 				layers = self.__layer_filter()
 				self.value['layer_results'] = layers
@@ -217,6 +297,66 @@ def hueshift(img,draw):
 			t['plus'].connect('clicked',add_these)
 			t['minus'].connect('clicked',remove_these)
 			
+			def fire_away(w):
+				layers = []
+				def yes(a,ob,i,param):
+					layers.append(a)
+				layercrawl(img.layers,call=yes,param=layers)
+				t = {a.name:a for a in layers}
+				print 'so much t',t
+				
+				pdb.gimp_undo_push_group_start(img)
+				
+				try:
+					def tl_corner(r):
+						a = [img.width,img.height]
+						for x1,y1,x2,y2 in r:
+							if x1 < a[0]:
+								a[0] = x1
+							if y1 < a[1]:
+								a[1] = y1
+						return a
+					def br_corner(r):
+						a = [0,0]
+						for x1,y1,x2,y2 in r:
+							if x2 > a[0]:
+								a[0] = x2
+							if y2 > a[1]:
+								a[1] = y2
+						return a
+					for n in self.layer_names:
+						print 'of layer_names:',n
+						r = []
+						def gosh(a,ob,i,param):
+							r.append((
+								a.offsets[0], a.offsets[1],
+								a.offsets[0]+a.width, a.offsets[1]+a.height))
+						layercrawl([t[n]],call=gosh,param=r)
+						
+						rect = (tl_corner(r),br_corner(r))
+						width = rect[1][0]-rect[0][0]
+						height = rect[1][1]-rect[0][1]
+						
+						layer = gimp.Layer(img,'__hueshift_'+n,width,height,RGBA_IMAGE,100,NORMAL_MODE)
+						layer.set_offsets(rect[0][0],rect[0][1])
+						
+						if t[n].parent:
+							index = t[n].parent.children.index(t[n])
+							pdb.gimp_image_insert_layer(img,layer,t[n].parent,index)
+						else:
+							index = img.layers.index(t[n])
+							pdb.gimp_image_insert_layer(img,layer,None,index)
+						
+						print 'all dat r',n,r
+						print '      and',rect
+				except:
+					pass
+					
+				pdb.gimp_undo_push_group_end(img)
+				sys.stdout.flush()
+			
+			t['butt'].connect('clicked',fire_away)
+			
 			# Eh... minor first-time initializations?
 			meh(None)
 			self.widgets['layer_edit'].refresh()
@@ -236,7 +376,7 @@ def hueshift(img,draw):
 	w = Win(
 		img,
 		title='Hue Shift - '+img.name,
-		size=[240,600],
+		size=[280,600],
 		resizable=False)
 	
 	print 'somer thangs'
