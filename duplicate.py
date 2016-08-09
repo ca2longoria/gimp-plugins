@@ -89,6 +89,9 @@ def hueshift(img,draw):
 					for n in self.source.layer_names:
 						self.vbox.pack_start(self.init_row(n),expand=False)
 				
+				def __row_root(self,w):
+					return widgetupquery(w,lambda w:type(w) is gtk.Frame)[0]
+				
 				def init_row(self,name):
 					frame = gtk.Frame()
 					row_root = frame
@@ -125,11 +128,11 @@ def hueshift(img,draw):
 							del r[i]
 							r.insert(x,name)
 							# Reorder sibling-widget-side.
-							row_root.get_parent().reorder_child(row_root,x)
+							root = self.__row_root(w)
+							#row_root.get_parent().reorder_child(row_root,x)
+							root.get_parent().reorder_child(row_root,x)
 							# Switch their set colors... or I guess just
 							# recompute?
-							
-							
 						return switch_entries
 					vb1  = gtk.VBox()
 					up   = gtk.Button(label='^')
@@ -152,6 +155,7 @@ def hueshift(img,draw):
 					hb1.pack_end(aln2,expand=False,fill=False)
 					
 					frame.add(hb1)
+					
 					frame.show_all()
 					return frame
 				
@@ -164,7 +168,25 @@ def hueshift(img,draw):
 					for i in range(len(r)):
 						bs[i].set_color(operation(i))
 					sys.stdout.flush()
-			
+				
+				def row_data(self):
+					bs = widgetquery(self,lambda w:type(w) is gtk.ColorButton)
+					ls = list(self.source.layer_names)
+					print '\nThese two:',bs,'\n',ls
+					colors = [b.get_color() for b in bs]
+					return dict(zip(ls,colors))
+				
+				def reverse(self):
+					r = widgetquery(self,lambda w:type(w) is gtk.ColorButton)
+					r = [self.__row_root(w) for w in r]
+					print 'r-est',r
+					for w in r:
+						#l = widgetquery(w,lambda w:hasattr(w,'get_text') and re.search(r'row',w.get_text()))
+						#print len(l) and w,l[0].get_text()
+						w.get_parent().reorder_child(w,0)
+					sys.stdout.flush()
+					self.source.layer_names.reverse()
+					
 			
 			def def_layer_results():
 				names = [[]]
@@ -233,9 +255,25 @@ def hueshift(img,draw):
 					},
 					'_tabs':('pack_start',{'expand':False,'fill':False}),
 					
-					'layer_edit':(11,LowerWin,[self]),
-					'_layer_edit':('pack_end',{'expand':True,'fill':True,
-						'_set':LowerWin.render_colors}),
+					'vbox1': { '_widget':(11,gtk.VBox),
+						'hbox4': { '_widget':(gtk.HBox,),
+							'revbutt':(0,gtk.Button,{'label':'reverse'}),
+							'_revbutt':('pack_start',{'expand':False}),
+							
+							'rootbutt':(1,gtk.Button,{'label':'root-groups'}),
+							'_rootbutt':('pack_start',{'expand':False}),
+							
+							'leafbutt':(2,gtk.Button,{'label':'leaf-layers'}),
+							'_leafbutt':('pack_start',{'expand':False})
+						},
+						'_hbox4':('pack_start',{'expand':False}),
+						
+						'layer_edit':(LowerWin,[self]),
+						'_layer_edit':('pack_end',{'expand':True,'fill':True,
+							'_get':LowerWin.row_data,
+							'_set':LowerWin.render_colors}),
+					},
+					'_vbox1':('pack_end',{'expand':True,'fill':True}),
 					
 					'butt':(10,gtk.Button,{'label':'Render Hue Filters'}),
 					'_butt':('pack_end',{'expand':False,'fill':False})
@@ -244,6 +282,8 @@ def hueshift(img,draw):
 			
 			self.image = img
 			# A number of different Widgets depend on this attribute.
+			# Considering building a kind of interface (duck type, I know), that
+			# incorporates the few uniform properties between all these widgets.
 			self.layer_names = []
 			PyWindow.__init__(self,contents=ob,*args,**keys)
 			
@@ -297,6 +337,14 @@ def hueshift(img,draw):
 			t['plus'].connect('clicked',add_these)
 			t['minus'].connect('clicked',remove_these)
 			
+			t['hbox4'].set_property('height-request',20)
+			t['revbutt'].set_property('width-request',50)
+			t['rootbutt'].set_property('width-request',75)
+			t['leafbutt'].set_property('width-request',70)
+			def reverse_layer_edit(w):
+				t['layer_edit'].reverse()
+			t['revbutt'].connect('clicked',reverse_layer_edit)
+			
 			def fire_away(w):
 				layers = []
 				def yes(a,ob,i,param):
@@ -307,52 +355,69 @@ def hueshift(img,draw):
 				
 				pdb.gimp_undo_push_group_start(img)
 				
-				try:
-					def tl_corner(r):
-						a = [img.width,img.height]
-						for x1,y1,x2,y2 in r:
-							if x1 < a[0]:
-								a[0] = x1
-							if y1 < a[1]:
-								a[1] = y1
-						return a
-					def br_corner(r):
-						a = [0,0]
-						for x1,y1,x2,y2 in r:
-							if x2 > a[0]:
-								a[0] = x2
-							if y2 > a[1]:
-								a[1] = y2
-						return a
-					for n in self.layer_names:
-						print 'of layer_names:',n
-						r = []
-						def gosh(a,ob,i,param):
-							r.append((
-								a.offsets[0], a.offsets[1],
-								a.offsets[0]+a.width, a.offsets[1]+a.height))
-						layercrawl([t[n]],call=gosh,param=r)
-						
-						rect = (tl_corner(r),br_corner(r))
-						width = rect[1][0]-rect[0][0]
-						height = rect[1][1]-rect[0][1]
-						
-						layer = gimp.Layer(img,'__hueshift_'+n,width,height,RGBA_IMAGE,100,NORMAL_MODE)
-						layer.set_offsets(rect[0][0],rect[0][1])
-						
-						if t[n].parent:
-							index = t[n].parent.children.index(t[n])
-							pdb.gimp_image_insert_layer(img,layer,t[n].parent,index)
-						else:
-							index = img.layers.index(t[n])
-							pdb.gimp_image_insert_layer(img,layer,None,index)
-						
-						print 'all dat r',n,r
-						print '      and',rect
-				except:
-					pass
+				ct = self.value['layer_edit']
+				print 'The C-est ct:',ct
+				
+				#try:
+				def tl_corner(r):
+					a = [img.width,img.height]
+					for x1,y1,x2,y2 in r:
+						if x1 < a[0]:
+							a[0] = x1
+						if y1 < a[1]:
+							a[1] = y1
+					return a
+				def br_corner(r):
+					a = [0,0]
+					for x1,y1,x2,y2 in r:
+						if x2 > a[0]:
+							a[0] = x2
+						if y2 > a[1]:
+							a[1] = y2
+					return a
+				for i in range(len(self.layer_names)):
+					n = self.layer_names[i]
+					print 'of layer_names:',n
+					r = []
+					def gosh(a,ob,i,param):
+						r.append((
+							a.offsets[0], a.offsets[1],
+							a.offsets[0]+a.width, a.offsets[1]+a.height))
+					layercrawl([t[n]],call=gosh,param=r)
 					
+					rect = (tl_corner(r),br_corner(r))
+					width = rect[1][0]-rect[0][0]
+					height = rect[1][1]-rect[0][1]
+					
+					layer = gimp.Layer(img,'__hueshift_'+n,width,height,RGBA_IMAGE,100,NORMAL_MODE)
+					layer.set_offsets(rect[0][0],rect[0][1])
+					
+					if t[n].parent:
+						index = t[n].parent.children.index(t[n])
+						pdb.gimp_image_insert_layer(img,layer,t[n].parent,index)
+					else:
+						index = img.layers.index(t[n])
+						pdb.gimp_image_insert_layer(img,layer,None,index)
+					
+					c = ct[n]
+					c = (int(c.red_float*255),int(c.green_float*255),int(c.blue_float*255))
+					print 'Color:',c
+					layer.mode = HUE_MODE
+					pdb.gimp_palette_set_foreground(c)
+					pdb.gimp_edit_fill(layer,FOREGROUND_FILL)
+					
+					# Does this do anything?
+					
+					layer = None
+					print 'all dat r',n,r
+					print '      and',rect
+				#except as e:
+				#	print >>sys.stderr,e
+				#	sys.stderr.flush()
+					
+				gimp.displays_flush()
 				pdb.gimp_undo_push_group_end(img)
+				
 				sys.stdout.flush()
 			
 			t['butt'].connect('clicked',fire_away)
@@ -386,48 +451,52 @@ def hueshift(img,draw):
 	print 'somest thang'
 	stdget(stdout,stderr)
 
-register(
-	"dupgrid",
-	"Duplicate to Grid",
-	"Duplicate the current image into a grid.",
-	"Cesar Longoria",
-	"Cesar Longoria",
-	"2016-2017",
-	"<Image>/_Pixel/_Duplicate to Grid",
-	"RGB*",
-	[
-		(PF_INT,'countx','Columns',1),
-		(PF_INT,'county','Rows',1),
-		(PF_TOGGLE,'new_image','Render to new image',False),
-		(PF_TOGGLE,'row_groups','Insert groups into row groups',False),
-		(PF_TOGGLE,'major_group','Insert all groups into major group',False)
-	],
-	[],
-	dupgrid,
-	menu=None,
-	domain=None,
-	on_query=None,
-	on_run=None
-)
 
-register(
-	"hueshift",
-	"Shift hues of matched groups.",
-	"Provide a ring of hues and offsets applicable to each of several stated group name matches.",
-	"Cesar Longoria",
-	"Cesar Longoria",
-	"2016-2017",
-	"<Image>/_Pixel/_Hue Shift",
-	"RGB*",
-	[],
-	[],
-	hueshift,
-	menu=None,
-	domain=None,
-	on_query=None,
-	on_run=None
-)
+# Only register and run main() if calling as a script proper, rather than from
+# the python-fu console for debugging purposes.
+if __name__ == '__main__':
+	register(
+		"dupgrid",
+		"Duplicate to Grid",
+		"Duplicate the current image into a grid.",
+		"Cesar Longoria",
+		"Cesar Longoria",
+		"2016-2017",
+		"<Image>/_Pixel/_Duplicate to Grid",
+		"RGB*",
+		[
+			(PF_INT,'countx','Columns',1),
+			(PF_INT,'county','Rows',1),
+			(PF_TOGGLE,'new_image','Render to new image',False),
+			(PF_TOGGLE,'row_groups','Insert groups into row groups',False),
+			(PF_TOGGLE,'major_group','Insert all groups into major group',False)
+		],
+		[],
+		dupgrid,
+		menu=None,
+		domain=None,
+		on_query=None,
+		on_run=None
+	)
 
-stdget(O,E)
+	register(
+		"hueshift",
+		"Shift hues of matched groups.",
+		"Provide a ring of hues and offsets applicable to each of several stated group name matches.",
+		"Cesar Longoria",
+		"Cesar Longoria",
+		"2016-2017",
+		"<Image>/_Pixel/_Hue Shift",
+		"RGB*",
+		[],
+		[],
+		hueshift,
+		menu=None,
+		domain=None,
+		on_query=None,
+		on_run=None
+	)
 
-main()
+	stdget(O,E)
+
+	main()

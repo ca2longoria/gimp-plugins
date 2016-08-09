@@ -172,6 +172,8 @@ def clone_layer_tree(img,layer,prefix='copy_',root=None):
 		ob['newlayer'] = layer
 		# These can be executed later in succession on calling the returned
 		# insert_layers function.
+		
+		# WARNING: This still results in a backwards insertion!
 		args.append((pdb.gimp_image_insert_layer,img,layer,
 			len(parents) and parents[-1]['newlayer'] or root,
 			ob['index']))
